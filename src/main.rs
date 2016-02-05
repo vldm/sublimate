@@ -3,8 +3,8 @@
 #![cfg_attr(feature="clippy", plugin(clippy))]
 
 mod core;
-mod toolkit;
-mod view;
+
+mod traits;
 
 #[macro_use]
 extern crate bitflags;
@@ -25,14 +25,18 @@ extern crate plist;
 
 extern crate clap;
 
-use ncurses::*;
+extern crate gtk;
+extern crate glib;
 
-use core::Core;
-use core::bindings::Key;
-use view::window::Window;
-use toolkit::*;
-use view::theme::PALETTE;
 use clap::{App, Arg};
+
+mod tui;
+//\TODO quick hack, replace to local paths in modules
+pub use tui::*;
+use application::TuiApplication as MainApplication;
+
+use traits::{Application};
+use core::Core;
 
 fn main() {
 
@@ -65,33 +69,8 @@ fn main() {
         matches.value_of("file").unwrap(),
         matches.value_of("project").unwrap());
 
-    setlocale(LcCategory::all, "en_US.utf-8");
-
-    initscr();
-
-    noecho();
-    keypad(stdscr, true);
-    curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
-    raw();
-
-    start_color();
-    use_default_colors();
-
-    for (i, &(ref fg, ref bg)) in PALETTE.iter().enumerate() {
-        init_pair(i as i16, fg.to_term(), bg.to_term());
-    }
-
-    let mut window = Window::new(core);
-    window.render(Canvas::screen());
-    loop {
-        if let Some(key) = Key::from_keycode(getch()) {
-            if key == Key::Enter {
-                break;
-            }
-            window.on_keypress(Canvas::screen(), key);
-        }
-    }
-
+    MainApplication::new(core)
+                        .map(|mut e| e.run()).unwrap();
 
     // println!("{:?}", window);
 
@@ -144,6 +123,6 @@ fn main() {
     //     }
     // }
 
-    // Terminate ncurses.
-    endwin();
+
+    
 }

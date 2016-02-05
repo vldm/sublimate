@@ -17,6 +17,9 @@ onig = "0.4"
 glob = "0.2.10"
 clap = "2"
 
+glib = { git = "https://github.com/gtk-rs/glib" }
+gtk = { path = "../gtk" }
+
 clippy = {version = "*", optional = true}
 
 [features]
