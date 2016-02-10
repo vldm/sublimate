@@ -17,8 +17,12 @@ onig = "0.4"
 glob = "0.2.10"
 clap = "2"
 
-glib = { git = "https://github.com/gtk-rs/glib" }
-gtk = { path = "../gtk" }
+glib = "^0"
+gdk = "^0"
+gtk = "^0"
+cairo-rs = "^0"
+pango = "*"
+pangocairo = { git = "https://github.com/vldm/pangocairo" }
 
 clippy = {version = "*", optional = true}
 

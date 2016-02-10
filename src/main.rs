@@ -26,14 +26,20 @@ extern crate plist;
 extern crate clap;
 
 extern crate gtk;
+extern crate cairo;
+extern crate pango;
 extern crate glib;
+extern crate pangocairo;
 
 use clap::{App, Arg};
 
 mod tui;
 //\TODO quick hack, replace to local paths in modules
 pub use tui::*;
-use application::TuiApplication as MainApplication;
+use application::TuiApplication;
+
+mod gtk_gui;
+use gtk_gui::application::GtkApplication;
 
 use traits::{Application};
 use core::Core;
@@ -62,18 +68,36 @@ fn main() {
                         .help("Sets path to sublime project")
                         .takes_value(true)
                         .required(true))
+                      .arg(Arg::with_name("tui")
+                        .short("T")
+                        .help("Set tui as frontend"))
+                    .arg(Arg::with_name("gtk")
+                        .short("G")
+                        .conflicts_with("tui")
+                        .help("Set gtk as frontend"))
                     .get_matches();
 
     let core = Core::load(
         matches.value_of("packages").unwrap(),
         matches.value_of("file").unwrap(),
         matches.value_of("project").unwrap());
-
-    MainApplication::new(core)
-                        .map(|mut e| e.run()).unwrap();
+        
+    if matches.is_present("tui") {
+        TuiApplication::new(core)
+                         .map(|mut app| app.run())
+                         .unwrap();
+    }
+    else if matches.is_present("gtk") {
+        GtkApplication::new(core)
+                         .map(|mut app| app.run())
+                         .unwrap();
+    }
+    else{
+        panic!("Set --tui or --gtk to run sublimate with specific user interface.");
+    }
 
     // println!("{:?}", window);
-
+ 
     // core.package_repository.get_keymap("default/Default (OSX).sublime-keymap");
     // core.package_repository.get_keymap("default/Default
     // (Windows).sublime-keymap");
