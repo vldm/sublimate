@@ -1,7 +1,3 @@
-//! # Toolbar, Scrollable Text View and File Chooser
-//!
-//! A simple text file viewer
-
 use core::Core;
 use traits::Application;
 
@@ -15,10 +11,13 @@ use gtk::signal::Inhibit;
 use core::syntax::{WHITE, BLACK};
 
 use super::editor;
+use super::tree::ProjectTree;
 
 pub struct GtkApplication {
-    window:gtk::Window,
-    core:Rc<Core>,
+    window: gtk::Window,
+    editor: gtk::DrawingArea,
+    sidebar: ProjectTree,
+    core: Rc<Core>,
 }
 
 impl Application for GtkApplication {
@@ -37,12 +36,15 @@ impl Application for GtkApplication {
         
         let font = "Monospace 10";
         let core = Rc::new(core);
+        let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 2).unwrap();
+        let (tree_view, sidebar) = ProjectTree::new(core.clone());
+        hbox.pack_start(&tree_view, false, false, 0);
         let drawing_area = editor::LineRenderer::new_drawing_area(400, 800,
                             1., font.to_owned(), core.clone(),
                             WHITE, BLACK);
-        window.add(&drawing_area);
 
-
+        hbox.pack_start(&drawing_area, true, true, 0);
+        window.add(&hbox);
 
         window.connect_delete_event(|_, _| {
             gtk::main_quit();
@@ -50,8 +52,10 @@ impl Application for GtkApplication {
         });
         
         Ok(GtkApplication{
-            window:window,
-            core:core
+            window: window,
+            core: core,
+            sidebar: sidebar,
+            editor: drawing_area
         })
     }
     

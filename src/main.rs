@@ -26,6 +26,7 @@ extern crate plist;
 extern crate clap;
 
 extern crate gtk;
+extern crate gtk_sys as gtk_ffi;
 extern crate cairo;
 extern crate pango;
 extern crate glib;

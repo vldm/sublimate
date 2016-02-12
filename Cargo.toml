@@ -20,6 +20,7 @@ clap = "2"
 glib = "^0"
 gdk = "^0"
 gtk = "^0"
+gtk-sys = "*"
 cairo-rs = "^0"
 pango = "*"
 pangocairo = { git = "https://github.com/vldm/pangocairo" }
