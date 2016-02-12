@@ -107,6 +107,8 @@ impl ParseSettings for Trigger {
 }
 */
 
+
+
 #[derive(Debug)]
 pub struct Preferences {
 	/// Sets the colors used within the text area
@@ -510,6 +512,99 @@ pub struct Preferences {
     pub ignored_packages: Vec<String>
 }
 
+
+macro_rules! impl_emit_property {
+    ( $json_type: path, $settings_type: path  => $type_name: path ) =>
+    {
+        impl EmitProperty for $type_name 
+        {
+            fn emit(val: Settings, name:&str) -> Result<Self,ParsePreferencesError> {
+                match val{
+                    $json_type(val) => Ok(val),
+                    _ => Err(ParsePreferencesError::IncorrectTypeOfSettings($settings_type, name.to_owned()))
+                }
+            }
+        }
+    };
+    ( $json_type: path, $settings_type: path  => $type_name: path => |$val:ident| $ex:expr) =>
+    {
+        impl EmitProperty for $type_name 
+        {
+            fn emit(val: Settings, name:&str) -> Result<Self,ParsePreferencesError> {
+                match val{
+                    $json_type($val) => Ok($ex),
+                    _ => Err(ParsePreferencesError::IncorrectTypeOfSettings($settings_type, name.to_owned()))
+                }
+            }
+        }
+    }
+}
+
+
+macro_rules! emit_property {
+    ($obj:expr, $name:ident, $type_name:path ) => {
+        let $name = match $obj.remove(stringify!($name)) {
+            Some(x) =>  try!(<$type_name as EmitProperty>::emit(x,stringify!($name))),
+            None => return Err(ParsePreferencesError::PreferencesAreNotDefined(stringify!($name).to_owned()))
+        }
+
+    }
+}
+
+macro_rules! emit_properties {
+    ($obj:expr => 
+                          $( $i_name:ident : $i_type_name:path),* $(,)* 
+    ) => {
+        $(
+            emit_property!($obj, $i_name, $i_type_name);
+        )*
+    };
+
+
+}
+
+trait EmitProperty : Sized {
+    fn emit(val: Settings, name:&str) -> Result<Self,ParsePreferencesError> ;
+}
+/*
+    Int,
+    UInt,
+    Float,
+    Boolean,
+    String,
+    Array
+*/
+impl_emit_property!(Settings::String, SettingsType::String => String);
+impl_emit_property!(Settings::Boolean, SettingsType::Boolean => bool);
+impl_emit_property!(Settings::I64, SettingsType::Int => i64);
+impl_emit_property!(Settings::I64, SettingsType::Int => i32 => | val | val as i32);
+impl_emit_property!(Settings::U64, SettingsType::UInt => u64);
+impl_emit_property!(Settings::U64, SettingsType::UInt => u32 => | val | val as u32);
+
+impl_emit_property!(Settings::Array, SettingsType::Array => Vec<String>);
+impl_emit_property!(Settings::F64, SettingsType::Float => f64);
+impl_emit_property!(Settings::F64, SettingsType::Float => f32 => | val | val as f32);
+
+impl_emit_property!(Settings::String, SettingsType::String => Regex => 
+            | val | Regex::new(&*val) );
+                                    
+impl_emit_property!(Settings::String, SettingsType::String => PathBuf => 
+            | val | PathBuf::from(val) );
+                                                                        
+impl_emit_property!(Settings::String, SettingsType::String => WordWrap => 
+            | val | match &*val {
+                "auto" => WordWrap::Auto,
+                "true" => WordWrap::Wrap,
+                "false" => WordWrap::NoWrap,
+                _ => return Err(ParsePreferencesError::IncorrectTypeOfSettings(SettingsType::String, "word_wrap".to_owned()))
+            });
+impl_emit_property!(Settings::String, SettingsType::String => ScopeSelector => 
+            | val | match ScopeSelector::from_str(&*val){
+                Ok(x) => x,
+                Err(e) => return Err(ParsePreferencesError::PreferencesAreNotDefined("spelling_selector".to_owned())),
+            });
+
+
 impl ParseSettings for Preferences {
     type Error = ParsePreferencesError;
     fn parse_settings(settings: Settings) -> Result<Preferences, Self::Error> {
@@ -517,7 +612,118 @@ impl ParseSettings for Preferences {
             Settings::Object(obj) => obj,
             _ => return Err(ParsePreferencesError::PreferencesAreNotObject),
         };
+        
 
+
+        emit_properties!(obj => 
+            color_scheme : String,
+            font_face : String,
+            font_size : i32,
+            font_options : Vec<String>,
+            word_separators : Regex,
+            line_numbers : bool,
+            gutter : bool,
+            fold_buttons : bool,
+            fade_fold_buttons : bool,
+            rulers : Vec<String>,
+            spell_check : bool,
+            tab_size : u32,
+            translate_tabs_to_spaces : bool,
+            use_tab_stops : bool,
+            auto_indent : bool,
+            smart_indent : bool,
+            indent_to_bracket : bool,
+            trim_automatic_white_space : bool,
+            word_wrap : WordWrap,
+            wrap_width : i32,
+            indent_subsequent_lines : bool,
+            draw_centered : bool,
+            auto_match_enabled : bool,
+            dictionary: PathBuf,
+            spelling_selector: ScopeSelector,
+            draw_minimap_border: String,
+            always_show_minimap_viewport: bool,
+            highlight_line: bool,
+            caret_style: CaretStyle,
+            caret_extra_top: 	i32,
+            caret_extra_bottom: i32,
+            caret_extra_width: 	i32,
+            match_brackets: bool,
+            match_brackets_content: bool,
+            match_brackets_square: bool,
+            match_brackets_braces: bool,
+            match_brackets_angle: bool,
+            match_tags: bool,
+            match_selection: bool,
+            line_padding_top: i32,
+            line_padding_bottom: i32,
+            scroll_past_end: bool,
+            move_to_limit_on_up_down: bool,
+            draw_white_space: DrawWhiteSpace,
+            draw_indent_guides: bool,
+            indent_guide_options: Vec<String>,
+            trim_trailing_white_space_on_save: bool,
+            ensure_newline_at_eof_on_save: bool,
+            save_on_focus_lost: bool,
+            atomic_save: bool,
+            fallback_encoding: String,
+            default_encoding: String,
+            enable_hexadecimal_encoding: bool,
+            default_line_ending: DefaultLineEnding,
+            tab_completion: bool,
+            auto_complete: bool,
+            auto_complete_size_limit: i32,
+            auto_complete_delay: i32,
+            auto_complete_selector: ScopeSelector,
+            auto_complete_triggers: Vec<Trigger>,
+            auto_complete_commit_on_tab: bool,
+            auto_complete_with_fields: bool,
+            auto_complete_cycle: bool,
+            auto_close_tags: bool,
+            shift_tab_unindent: bool,
+            copy_with_empty_selection: bool,
+            find_selected_text: bool,
+            auto_find_in_selection: bool,
+            drag_text: bool,
+            theme: PathBuf,
+            scroll_speed: f32,
+            tree_animation_enabled: bool,
+            animation_enabled: bool,
+            highlight_modified_tabs: bool,
+            show_tab_close_buttons: bool,
+            bold_folder_labels: bool,
+            use_simple_full_screen: bool,
+            gpu_window_buffer: GPUWindowBuffer,
+            overlay_scroll_bars: OverlayScrollBars,
+            enable_tab_scrolling: bool,
+            show_encoding: bool,
+            show_line_endings: bool,
+            hot_exit: bool,
+            remember_full_screen: bool,
+            always_prompt_for_file_reload: bool,
+            open_files_in_new_window: bool,
+            create_window_at_startup: bool,
+            close_windows_when_empty: bool,
+            show_full_path: bool,
+            show_panel_on_build: bool,
+            preview_on_click: bool,
+            folder_exclude_patterns: ExcludePatterns,
+            file_exclude_patterns: ExcludePatterns,
+            binary_file_patterns: ExcludePatterns,
+            index_files: bool,
+            index_workers: i32,
+            index_exclude_patterns: Vec<String>,
+            enable_telemetry: EnableTelemetry,
+            ignored_packages: Vec<String>
+
+         );
+
+
+       
+        //END OF THE FILE
+
+        
+    /*     
         let color_scheme = match obj.remove("color_scheme") {
             Some(Settings::String(s)) => PathBuf::from(s),
             None => return Err(ParsePreferencesError::PreferencesAreNotDefined("color_scheme".to_string())),
@@ -1109,6 +1315,6 @@ impl ParseSettings for Preferences {
             None => return Err(ParsePreferencesError::PreferencesAreNotDefined("preview_on_click".to_owned())),
             _ => return Err(ParsePreferencesError::IncorrectTypeOfSettings(SettingsType::Boolean, "preview_on_click".to_owned()))
         };
-
+*/
     }
 }
