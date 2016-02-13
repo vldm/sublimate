@@ -70,6 +70,7 @@ pub enum ParsePreferencesError {
     PreferencesAreNotObject,
     PreferencesAreNotDefined(String),
     IncorrectTypeOfSettings(SettingsType, String),
+    PreferencesCastError(String),
 }
 
 #[derive(Debug)]
@@ -516,24 +517,27 @@ pub struct Preferences {
 macro_rules! impl_emit_property {
     ( $json_type: path, $settings_type: path  => $type_name: path ) =>
     {
-        impl EmitProperty for $type_name 
-        {
-            fn emit(val: Settings, name:&str) -> Result<Self,ParsePreferencesError> {
-                match val{
-                    $json_type(val) => Ok(val),
-                    _ => Err(ParsePreferencesError::IncorrectTypeOfSettings($settings_type, name.to_owned()))
-                }
-            }
-        }
+        impl_emit_property!($json_type, $settings_type => $type_name 
+                            => |val, name| val);
     };
-    ( $json_type: path, $settings_type: path  => $type_name: path => |$val:ident| $ex:expr) =>
+    ( $json_type: path, $settings_type: path  => $type_name: path 
+                            => |$val:ident| $ex:expr) =>
+    {
+        impl_emit_property!($json_type, $settings_type => $type_name 
+                            => |$val, name| $ex);
+    };
+    ( $json_type: path, $settings_type: path  => $type_name: path 
+                            => |$val:ident, $name:ident | $ex:expr) =>
     {
         impl EmitProperty for $type_name 
         {
-            fn emit(val: Settings, name:&str) -> Result<Self,ParsePreferencesError> {
+            fn emit(val: Settings, name:&str) 
+                            -> Result<Self,ParsePreferencesError> {
+                let $name = name;
                 match val{
                     $json_type($val) => Ok($ex),
-                    _ => Err(ParsePreferencesError::IncorrectTypeOfSettings($settings_type, name.to_owned()))
+                    _ => Err(ParsePreferencesError::IncorrectTypeOfSettings(
+                                             $settings_type, $name.to_owned()))
                 }
             }
         }
@@ -566,14 +570,7 @@ macro_rules! emit_properties {
 trait EmitProperty : Sized {
     fn emit(val: Settings, name:&str) -> Result<Self,ParsePreferencesError> ;
 }
-/*
-    Int,
-    UInt,
-    Float,
-    Boolean,
-    String,
-    Array
-*/
+
 impl_emit_property!(Settings::String, SettingsType::String => String);
 impl_emit_property!(Settings::Boolean, SettingsType::Boolean => bool);
 impl_emit_property!(Settings::I64, SettingsType::Int => i64);
@@ -581,12 +578,20 @@ impl_emit_property!(Settings::I64, SettingsType::Int => i32 => | val | val as i3
 impl_emit_property!(Settings::U64, SettingsType::UInt => u64);
 impl_emit_property!(Settings::U64, SettingsType::UInt => u32 => | val | val as u32);
 
-impl_emit_property!(Settings::Array, SettingsType::Array => Vec<String>);
+
 impl_emit_property!(Settings::F64, SettingsType::Float => f64);
 impl_emit_property!(Settings::F64, SettingsType::Float => f32 => | val | val as f32);
 
+impl_emit_property!(Settings::Array, SettingsType::Array => Vec<String> => 
+            |val, name| val.into_iter()
+                     .map(|el| <String as EmitProperty>::emit(el, name))
+                     .collect::<Result<Vec<String>,_>>().unwrap() );
+
 impl_emit_property!(Settings::String, SettingsType::String => Regex => 
-            | val | Regex::new(&*val) );
+            | val, name | try!(Regex::new(&*val).map_err(|_|
+                            ParsePreferencesError::PreferencesCastError(
+                                                        name.to_owned()))
+                                                        ));
                                     
 impl_emit_property!(Settings::String, SettingsType::String => PathBuf => 
             | val | PathBuf::from(val) );
@@ -598,6 +603,44 @@ impl_emit_property!(Settings::String, SettingsType::String => WordWrap =>
                 "false" => WordWrap::NoWrap,
                 _ => return Err(ParsePreferencesError::IncorrectTypeOfSettings(SettingsType::String, "word_wrap".to_owned()))
             });
+impl_emit_property!(Settings::String, SettingsType::String => CaretStyle => 
+            | val | match &*val {
+                "smooth" => CaretStyle::Smooth,
+                "phase" => CaretStyle::Phase,
+                "blink" => CaretStyle::Blink,
+                "solid" => CaretStyle::Solid,
+                _ => return Err(ParsePreferencesError::IncorrectTypeOfSettings(SettingsType::String, "caret_style".to_owned()))
+            });
+impl_emit_property!(Settings::String, SettingsType::String => DrawWhiteSpace => 
+            | val | match &*val {
+                "none" => DrawWhiteSpace::None,
+                "all" => DrawWhiteSpace::All,
+                "selection" => DrawWhiteSpace::Selection,
+                _ => return Err(ParsePreferencesError::IncorrectTypeOfSettings(SettingsType::String, "draw_white_space".to_owned()))
+            });
+impl_emit_property!(Settings::String, SettingsType::String => DefaultLineEnding => 
+            | val | match &*val {
+                "windows" => DefaultLineEnding::Windows,
+                "unix" => DefaultLineEnding::Unix,
+                "system" => DefaultLineEnding::System,
+                _ => return Err(ParsePreferencesError::IncorrectTypeOfSettings(SettingsType::String, "default_line_ending".to_owned()))
+            });
+impl_emit_property!(Settings::String, SettingsType::String => OverlayScrollBars => 
+            | val | match &*val {
+                "system" => OverlayScrollBars::System,
+                "enabled" => OverlayScrollBars::Enabled,
+                "disabled" => OverlayScrollBars::Disabled,
+                _ => return Err(ParsePreferencesError::IncorrectTypeOfSettings(SettingsType::String, "overlay_scroll_bars".to_owned()))
+            });
+impl_emit_property!(Settings::String, SettingsType::String => GPUWindowBuffer => 
+            | val | match &*val {
+                "true" => GPUWindowBuffer::Enabled,
+                "false" => GPUWindowBuffer::Disabled,
+                "auto" => GPUWindowBuffer::Auto,
+                _ => return Err(ParsePreferencesError::IncorrectTypeOfSettings(SettingsType::String, "gpu_window_buffer".to_owned()))
+            });
+
+
 impl_emit_property!(Settings::String, SettingsType::String => ScopeSelector => 
             | val | match ScopeSelector::from_str(&*val){
                 Ok(x) => x,
